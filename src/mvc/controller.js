@@ -1,12 +1,10 @@
 const Map = require("../modules/api_yandex_map");
-const Modal = require("../modules/modal");
-const Placemarks = require("../modules/clusters");
+// const Modal = require("../modules/modal");
+// const Placemarks = require("../modules/clusters");
 
 export default class {
   constructor() {
     this.myApiMap = new Map();
-    this.modal = new Modal();
-    this.placemarks = new Placemarks();
 
     this.init();
   }
@@ -16,25 +14,34 @@ export default class {
       center: [59.945, 30.264],
       zoom: 15,
       controls: ["zoomControl", "fullscreenControl"]
-    }, this.getPlacemarks = this.placemarks.createPlacemarks(this.yandexApi));
+    });
+
+    this.Placemarks = await this.myApiMap.createPlacemarks();
 
     this.yandexApi.events.add("click", async e => {
+      // console.log(this.yandexApi.balloon.events.types);
       this.position = await this.myApiMap.getMapPosition(e);
 
-      this.template = await this.modal.createTemplate(this.position);
+      // this.template = await this.modal.createTemplate(this.position);
 
-      // placemark
-      var Placemark = new ymaps.Placemark(this.position.coords, {
-        name: 'test'
-      }, {
-        balloonLayout: this.template,
-        openEmptyBalloon: true,
-        balloonCloseButton: false
-      });
+      // // placemark
+      // var Placemark = new ymaps.Placemark(this.position.coords, {
+      //   name: 'test'
+      // }, {
+      //   balloonLayout: this.template,
+      //   openEmptyBalloon: true,
+      //   balloonCloseButton: false
+      // });
 
-      this.yandexApi.geoObjects.add(Placemark);
 
-      Placemark.balloon.open();
+      // this.yandexApi.geoObjects.add(Placemark);
+      // console.log(this.yandexApi.geoObjects);
+
+      // Placemark.balloon.open();
+      // if(balloon.isOpen()){
+      //   console.log('opened');
+      // }
+      this.Balloon = await this.myApiMap.createBalloon(this.position);
 
     });
 
