@@ -6,58 +6,12 @@ module.exports = class {
         clusterDisableClickZoom: true,
         clusterBalloonContentLayout: 'cluster#balloonCarousel',
       });
+
+      this.map.events.add('click', function (e) {});
+
       this.map.geoObjects.add(this.cluster);
       return this.map;
     });
-  }
-
-  async createPlacemarks() {
-    let geoObjects = [];
-
-    function createCoordinates() {
-      let arrayOfcoords = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        let array = [];
-        let coords = localStorage.key(i).split(',');
-
-        coords.forEach(function (item, i, arr) {
-          let toNum = parseFloat(item);
-          if (!isNaN(toNum)) {
-            array.push(toNum);
-          }
-        });
-
-        arrayOfcoords.push(array);
-      }
-      return arrayOfcoords;
-    }
-
-    let coordinatesArray = createCoordinates();
-
-    for (var i = 0; i < localStorage.length; i++) {
-      let userData = localStorage.getItem(localStorage.key(i)).split(',');
-      let address = [];
-
-      userData.forEach(function (item, i, array) {
-        if (i > 2) {
-          address.push(item);
-        }
-      });
-
-      if (coordinatesArray[i].length > 1) {
-        geoObjects[i] = new ymaps.Placemark(coordinatesArray[i], {
-          // balloonContentBodyLayout: 'BalloonContentLayout',
-          balloonContentHeader: userData[0],
-          balloonContentBody: `<div>${userData[1]}</div> <div>${userData[2]}</div><a class="linckCoords" href="javascript:void(0);" data-coords="${coordinatesArray[i]}">${address}</a>`,
-          balloonPanelMaxMapArea: 0,
-          hasBalloon: false
-        });
-      }
-
-
-    }
-
-    this.cluster.add(geoObjects);
   }
 
   async getMapPosition(e) {
@@ -71,43 +25,51 @@ module.exports = class {
     };
   }
 
-  async createBalloon(tmp) {
+  async createBalloon(options) {
     const clusterNem = this.cluster;
+    const mapName = this.map;
 
-    var BalloonContentLayout = await ymaps.templateLayoutFactory.createClass(
-      '<div class="form">' +
-      '<div class="header">' +
-      tmp.address +
-      "</div>" +
-      '<div class="body">' +
-      "</div>" +
-      '<p class="title">Ваш отзыв</p>' +
-      '<div><input id="name" type="text" placeholder="Ваше имя"/></div>' +
-      '<div><input id="point" type="text" placeholder="Укажите место" /></div>' +
-      "<div>" +
-      '<textarea id="message" placeholder="Поделись впечатлениями">' +
-      " </textarea></div>" +
-      '<div class="button">' +
-      '<button id="btn">Отправить</button>' +
-      "</div>" +
-      "</div>", {
+    var BalloonLayout = await ymaps.templateLayoutFactory.createClass(
+      `<div class="modal" id="myModal">
+      <div class="modal__header">
+          <div id="modalAdress">${options.address}</div><span class="modal__close"></span>
+          </div>
+          <div class="modal__inner">
+          <div class="modal__result"></div>
+          <div class="modal__title">Ваш отзыв</div>
+          <form id="modalForm">
+            <input name="name" id="name" class="modal__input" type="text" placeholder="Ваше имя">
+            <input name="point" id="point" class="modal__input" type="text" placeholder="Укажите место">
+            <textarea name="message" id="message" class="modal__textarea" placeholder="Поделитесь впечатлениями"></textarea>
+            <div class="modal__submit-wrapper">
+                <button class="modal__submit" id="addReview">Добавить</button>
+            </div>
+          </form>
+          </div>
+      </div>`, {
         build: function () {
-          BalloonContentLayout.superclass.build.call(this);
+          BalloonLayout.superclass.build.call(this);
           var that = this;
+          let storage = localStorage;
+          let coords = options.coords;
+          let localValue = storage.getItem(coords);
+          const body = document.querySelector(".modal__result");
+
+          if (!localValue) {
+            body.textContent = 'Отзывов пока нет...';
+          }
 
           document.addEventListener("click", function (e) {
             e.preventDefault();
-            const name = document.getElementById("name").value;
-            const point = document.getElementById("point").value;
-            const message = document.getElementById("message").value;
-            const body = document.querySelector(".body");
-            const button = document.getElementById("btn");
-            const div = document.createElement("div");
+
+            const closeBtn = document.querySelector(".modal__close");
+            const button = document.getElementById("addReview");
 
             if (e.target === button) {
-
-              let dataArray = [];
-              // div.innerHTML = `<div id="review"><b>${name}</b> <span>${point}</span><span class="data">${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}.${d.getMinutes()}</span><p>${message}</p></div>`;
+              const name = document.getElementById("name").value;
+              const point = document.getElementById("point").value;
+              const message = document.getElementById("message").value;
+              const div = document.createElement("div");
 
               if (name === '') {
                 alert('поле Имя не заполнено');
@@ -116,16 +78,64 @@ module.exports = class {
               } else if (message === '') {
                 alert('поле Комментарий не заполнено');
               } else {
-                dataArray.push(name);
-                dataArray.push(point);
-                dataArray.push(message);
-                dataArray.push(tmp.address);
+
+                let storageData;
+
+                body.innerHTML = '';
                 div.innerHTML = `<div><b>${name}</b> ${point}</div><div>${message}</div>`;
                 body.appendChild(div);
-                localStorage.setItem(tmp.coords, dataArray);
-                that.onContent(name, point, message);
 
+                if (!localValue) {
+
+                  storageData = JSON.stringify({
+                    review: {
+                      userName: name,
+                      userPoint: point,
+                      userMessage: message,
+                      address: options.address
+                    }
+                  });
+
+                  localStorage.setItem(options.coords, storageData);
+                } else {
+                  let data = JSON.parse(localValue || '{}');
+
+                  var objLength = function (obj) {
+                    var key, len = 0;
+                    for (key in obj) {
+                      len += Number(obj.hasOwnProperty(key));
+                    }
+                    return len;
+                  };
+
+                  let objLen = objLength(data); // длина объекта (кол-во отзывов)
+                  let newReview = 'review_' + (objLen + 1);
+                  data[newReview] = {
+                    userName: name,
+                    userPoint: point,
+                    userMessage: message,
+                    address: options.address
+                  };
+
+                  storageData = JSON.stringify(data);
+
+                  localStorage.setItem(options.coords, storageData);
+                }
+
+
+                let ebobo = that.addPlacemark(name, point, message, options.coords, options.address);
+
+                console.log(ebobo[0]);
+                console.log(ebobo[1]);
+
+                // clusterNem.add(ebobo[0]);
+                mapName.geoObjects.add(ebobo[1]);
               }
+
+            }
+
+            if (e.target === closeBtn) {
+              that.events.fire('userclose');
             }
 
           });
@@ -134,42 +144,68 @@ module.exports = class {
         clear: function () {
           // Выполняем действия в обратном порядке - сначала снимаем слушателя,
           // а потом вызываем метод clear родительского класса.
-          BalloonContentLayout.superclass.clear.call(this);
+          // document.removeEventListener("click", function (e) {
 
-          document.removeEventListener("click", function (e) {
+          // });
+          BalloonLayout.superclass.clear.call(this);
 
-          });
+
         },
 
-        onContent: function (name, point, message) {
+        addPlacemark: function (name, point, message, coords) {
 
           var myPlacemark = new ymaps.Placemark(
-            tmp.coords, {
-              balloonContentHeader: `<b>${point}</b>`,
-              balloonContentBody: `<div id="review"><a class="linckCoords" href="javascript:void(0);" data-coords="${tmp.coords}">${tmp.address}</a> <p>${message}</p></div>`,
-              // balloonContentFooter: `${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}.${d.getMinutes()}`
-            }, {
-              balloonContentBodyLayout: BalloonContentLayout,
+            coords, {
+              balloonLayout: BalloonLayout,
               balloonPanelMaxMapArea: 0,
-              hasBalloon: true
+              hasBalloon: false
             }
           );
 
           clusterNem.add(myPlacemark);
 
-          return [myPlacemark, this.cluster];
+          return [myPlacemark, clusterNem];
         }
 
 
       }
     );
 
+
     let balloon = await new ymaps.Balloon(this.map, {
-      contentLayout: BalloonContentLayout
+      layout: BalloonLayout,
+      closeButton: false
     });
 
     await balloon.options.setParent(this.map.options);
-    await balloon.open(tmp.coords);
+
+    await this.cluster.events.add('click', function (e) {
+      balloon.close();
+    });
+
+    balloon.open(options.coords);
+
+
+
+    // console.log(balloon.events);
+    // balloon.events
+    //   .add('close', function () {
+
+    //     // alert('close')
+
+    //   })
+    //   .add('open', function () {
+
+    //     // alert('open')
+
+    //     if (!mapName.balloon.isOpen()) {
+    //       console.log('балун не открыт');
+
+    //     } else {
+    //       balloon.close();
+    //       console.log('балун открыт');
+    //     }
+    //   });
 
   }
 

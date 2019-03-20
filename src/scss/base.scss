@@ -11,7 +11,11 @@
     width: 380px;
     border-radius: 10px;
     overflow: hidden;
-
+    &__result {
+        height: 80px;
+        margin-bottom: 15px;
+        overflow: auto;
+    }
     &__close {
         content: "";
         width: 14px;
@@ -19,6 +23,7 @@
         position: absolute;
         right: 12px;
         top: 14px;
+        cursor: pointer;
         background: url(./images/icon_close.png) no-repeat;
     }
 
