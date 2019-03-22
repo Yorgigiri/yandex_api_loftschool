@@ -1,57 +1,40 @@
 module.exports = class {
-  initMap(settings, objects) {
+  initMap(settings) {
     return new Promise((resolve, reject) => ymaps.ready(resolve)).then(() => {
       const clustererLayout = ymaps.templateLayoutFactory.createClass(
-        '<h1>{{properties.point|raw}}</h1>' + '<div><a href="#" data-coords="{{properties.coords|raw}}" class="openBalloon">{{properties.address|raw}}</a></div>' + '<div>{{properties.message|raw}}</div>', {
+        '<h1>{{properties.point|raw}}</h1>' + '<div><a href="#" data-coords="{{properties.coords|raw}}" id="openBalloon">{{properties.address|raw}}</a></div>' + '<div>{{properties.message|raw}}</div>', {
           build: function () {
             clustererLayout.superclass.build.call(this);
             const that = this;
 
-            console.log(ymaps);
+            document.addEventListener('click', function (e) {
+              e.preventDefault();
 
+              let link = document.getElementById('openBalloon');
 
-            // jQuery('.openBalloon').on("click", function () {
-            //   // Определяем по какой метке произошло событие.
+              if (e.target === link) {
 
-            //   let coord = jQuery(this).data().coords;
-            //   console.log(coord);
-            //   console.log(objects.yandexApi.geoObjects);
-              
-            //   objects.yandexApi.geoObjects.each(function (geoObject) {
-            //     // console.log(geoObject.balloon);
-            //     let obj = geoObject._objects;
-            //     let keys = Object.keys(obj);
-            //     // console.log(obj);
-                
-            //     for(let i =0; i < keys.length; i++){
-            //       let key = keys[i];
-            //       console.log(obj.getObjectState([key]));
-            //       // console.log(obj);
-            //       // console.log(obj[key].geoObject);
-            //       // obj[key].geoObject.balloon.open();
-            //       // let coord = obj[key].geoObject.geometry._coordinates;
-            //       // obj[key].geoObject.balloon.open(coord);
-            //     }
+                that.events.fire('userclose');
 
-            //   });
-            // });
+              }
+
+            });
 
           }
-        }
-      );
-
+        });
 
       this.map = new ymaps.Map("map", settings);
+      this.objectManager = new ymaps.ObjectManager({
+        clusterize: true
+      });
+
       this.cluster = new ymaps.Clusterer({
         clusterDisableClickZoom: true,
         clusterBalloonContentLayout: 'cluster#balloonCarousel',
         clusterBalloonItemContentLayout: clustererLayout
       });
 
-      this.map.events.add('click', function (e) {
-        const that = this;
-      });
-
+      this.map.geoObjects.add(this.objectManager);
       this.map.geoObjects.add(this.cluster);
       return this.map;
     });
@@ -64,14 +47,15 @@ module.exports = class {
 
     return {
       coords,
-      geocode,
       address
     };
   }
 
-  async createBalloon(options) {
+  async createBalloon(options, customCoords) {
     const clusterNem = this.cluster;
     const mapName = this.map;
+    const objManager = this.objectManager;
+    const coords = options.coords;
 
     var BalloonLayout = await ymaps.templateLayoutFactory.createClass(
       `<div class="modal" id="myModal" data-coords="${options.coords}">
@@ -99,17 +83,26 @@ module.exports = class {
           BalloonLayout.superclass.build.call(this);
 
           var that = this;
-          // console.log();
+          that.events.fire('userclose');
           const closeBtn = document.querySelector(".modal__close");
           const button = document.getElementById("addReview");
           const body = document.querySelector(".modal__result");
           let storage = localStorage;
-          let coords = options.coords;
-
 
           if (!storage.getItem(coords)) {
             body.textContent = 'Отзывов пока нет...';
           }
+
+          document.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            let link = document.getElementById('openBalloon');
+
+            if (e.target === link) {
+              that.events.fire('userclose');
+            }
+
+          });
 
           button.addEventListener('click', function (e) {
             e.preventDefault();
@@ -129,10 +122,8 @@ module.exports = class {
             } else {
 
               let storageData;
-              let placemarkId;
 
               if (!localValue) {
-                console.log('нетууу ');
                 storageData = JSON.stringify({
                   review: {
                     userName: name,
@@ -144,9 +135,8 @@ module.exports = class {
 
                 localStorage.setItem(options.coords, storageData);
                 body.innerHTML = '';
-                placemarkId = 0;
+
               } else {
-                console.log('естььь ');
                 let data = JSON.parse(localValue || '{}');
 
                 let objLen = that.objLength(data); // длина объекта (кол-во отзывов)
@@ -161,12 +151,11 @@ module.exports = class {
                 storageData = JSON.stringify(data);
 
                 localStorage.setItem(options.coords, storageData);
-                placemarkId = objLen + 1;
               }
 
               div.innerHTML = `<div><b>${name}</b> ${point}</div><div>${message}</div>`;
               body.appendChild(div);
-              that.addPlacemark(name, point, message, options.coords, options.address, placemarkId);
+              that.addPlacemark(name, point, message, options.coords, options.address);
 
             }
           });
@@ -178,13 +167,6 @@ module.exports = class {
 
         },
 
-        // clear: function () {
-        //   this._$element.find('.close')
-        //     .off('click');
-
-        //   this.constructor.superclass.clear.call(this);
-        // },
-
         objLength: function (obj) {
           var key, len = 0;
           for (key in obj) {
@@ -193,24 +175,18 @@ module.exports = class {
           return len;
         },
 
-        getReviews: function (coord, container) {
+        getReviews: function (coord) {
           // Получаем отзывы из localStorage
-          const that = this;
 
           let localValue = localStorage.getItem(coord);
           let data = JSON.parse(localValue || '{}');
-          // let reviewsLength = that.objLength(data);
           let objKeys = Object.keys(data);
           let array = [];
 
           if (localValue) {
-            // console.log(objKeys);
+
             for (let i = 0; i < objKeys.length; i++) {
-              // console.log(objKeys[i]);
               array.push([data[objKeys[i]].userName, data[objKeys[i]].userPoint, data[objKeys[i]].userMessage]);
-              // console.log(data[objKeys[i]].userName);
-              // console.log(data[objKeys[i]].userPoint);
-              // console.log(data[objKeys[i]].userMessage);
             }
 
             return array;
@@ -218,10 +194,9 @@ module.exports = class {
 
         },
 
-        addPlacemark: function (name, point, message, coords, address, placemarkId) {
+        addPlacemark: function (name, point, message, coords, address) {
           const that = this;
           const reviews = that.getReviews(coords);
-
 
           var myPlacemark = new ymaps.Placemark(
             coords, {
@@ -230,7 +205,6 @@ module.exports = class {
               message: message,
               address: address,
               coords: coords,
-              placemarkId: placemarkId,
               reviews: reviews
             }, {
               balloonLayout: BalloonLayout,
@@ -240,10 +214,9 @@ module.exports = class {
 
           clusterNem.add(myPlacemark);
           mapName.geoObjects.add(clusterNem);
-          console.log(options.geocode);
+
           return [myPlacemark, clusterNem];
         }
-
 
       }
     );
@@ -256,15 +229,18 @@ module.exports = class {
     await balloon.options.setParent(this.map.options);
 
     this.cluster.events.add('click', function (e) {
-      console.log('clicked cluster');
       balloon.close();
     });
 
-    jQuery(document).on("click", '.openBalloon', function () {
+    if (await balloon) {
+      await balloon.close();
+    }
 
-    });
-
-    await balloon.open(options.coords);
+    if (customCoords) {
+      await balloon.open(customCoords);
+    } else {
+      await balloon.open(coords);
+    }
 
     return await balloon;
 

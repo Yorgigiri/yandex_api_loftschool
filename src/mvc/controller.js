@@ -14,13 +14,11 @@ export default class {
       center: [59.945, 30.264],
       zoom: 14,
       controls: ["zoomControl", "fullscreenControl"]
-    }, this);
+    });
 
     this.yandexApi.events.add("click", async e => {
 
       this.position = await this.myApiMap.getMapPosition(e);
-
-      console.log(e.get('target'));
 
       if (this.Balloon) {
         this.Balloon.close();
@@ -28,18 +26,60 @@ export default class {
 
       this.Balloon = await this.myApiMap.createBalloon(this.position);
 
-      // jQuery(document).on("click", ".openBalloon", function () {
-      //   // Определяем по какой метке произошло событие.
-      //   // console.log(that.Balloon);
-      //   let coords = jQuery(this).data().coords;
-      //   that.Balloon = this.myApiMap.createBalloon(coords);
+    });
 
-      //   // this.Balloon = await this.myApiMap.createBalloon(this.position);
-      //   // var selectedPlacemark = placemarks[jQuery(this).data().placemarkid];
-      //   // alert(selectedPlacemark.properties.get('balloonContentBody'));
-      // });
+    document.addEventListener('click', async e => {
+      e.preventDefault();
+
+      let link = document.getElementById('openBalloon');
+
+      if (e.target === link) {
+        let data = e.target.getAttribute('coords');
+
+        if (this.Balloon) {
+          this.Balloon.close();
+        }
+  
+        this.Balloon = await this.myApiMap.createBalloon(this.position, data);
+        
+        function getReviews(value) {
+          // Получаем отзывы из localStorage
+
+          let localValue = localStorage.getItem(value);
+          let data = JSON.parse(localValue || '{}');
+          let objKeys = Object.keys(data);
+          let array = [];
+
+          if (localValue) {
+
+            for (let i = 0; i < objKeys.length; i++) {
+              array.push([data[objKeys[i]].userName, data[objKeys[i]].userPoint, data[objKeys[i]].userMessage]);
+            }
+
+            return array;
+          }
+        }
+
+        const body = document.querySelector(".modal__result");
+        let dataCoords = e.target.getAttribute('data-coords');
+        let reviewsArray = getReviews(dataCoords);
+
+        if (reviewsArray.length > 0) {
+
+          body.innerHTML = '';
+
+          for (let i = 0; i < reviewsArray.length; i++) {
+            let element = document.createElement('div');
+
+            element.innerHTML = `<div><b>${reviewsArray[i][0]}</b> ${reviewsArray[i][1]}</div><div>${reviewsArray[i][2]}</div>`;
+            body.appendChild(element);
+          }
+
+        }
+      }
 
     });
+
 
   }
 
