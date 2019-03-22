@@ -14,16 +14,31 @@ export default class {
       center: [59.945, 30.264],
       zoom: 14,
       controls: ["zoomControl", "fullscreenControl"]
-    });
+    }, this);
 
     this.yandexApi.events.add("click", async e => {
 
       this.position = await this.myApiMap.getMapPosition(e);
 
-      this.Balloon = await this.myApiMap.createBalloon(this.position, e);
-      var object = e.get('target');
+      console.log(e.get('target'));
 
-      console.log(object);
+      if (this.Balloon) {
+        this.Balloon.close();
+      }
+
+      this.Balloon = await this.myApiMap.createBalloon(this.position);
+
+      // jQuery(document).on("click", ".openBalloon", function () {
+      //   // Определяем по какой метке произошло событие.
+      //   // console.log(that.Balloon);
+      //   let coords = jQuery(this).data().coords;
+      //   that.Balloon = this.myApiMap.createBalloon(coords);
+
+      //   // this.Balloon = await this.myApiMap.createBalloon(this.position);
+      //   // var selectedPlacemark = placemarks[jQuery(this).data().placemarkid];
+      //   // alert(selectedPlacemark.properties.get('balloonContentBody'));
+      // });
+
     });
 
   }
