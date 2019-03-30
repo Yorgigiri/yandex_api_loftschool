@@ -1,63 +1,43 @@
 module.exports = class {
-  initMap(settings, objects) {
+  initMap(settings) {
     return new Promise((resolve, reject) => ymaps.ready(resolve)).then(() => {
-      this.map = new ymaps.Map("map", settings);
-      this.cluster = new ymaps.Clusterer({
-        clusterDisableClickZoom: true,
-        clusterBalloonContentLayout: 'cluster#balloonCarousel',
-      });
-      this.map.geoObjects.add(this.cluster);
-      return this.map;
-    });
-  }
+      const clustererLayout = ymaps.templateLayoutFactory.createClass(
+        '<h1>{{properties.point|raw}}</h1>' + '<div><a href="#" data-coords="{{properties.coords|raw}}" id="openBalloon">{{properties.address|raw}}</a></div>' + '<div>{{properties.message|raw}}</div>', {
+          build: function () {
+            clustererLayout.superclass.build.call(this);
+            const that = this;
 
-  async createPlacemarks() {
-    let geoObjects = [];
+            document.addEventListener('click', function (e) {
+              e.preventDefault();
 
-    function createCoordinates() {
-      let arrayOfcoords = [];
-      for (var i = 0; i < localStorage.length; i++) {
-        let array = [];
-        let coords = localStorage.key(i).split(',');
+              let link = document.getElementById('openBalloon');
 
-        coords.forEach(function (item, i, arr) {
-          let toNum = parseFloat(item);
-          if (!isNaN(toNum)) {
-            array.push(toNum);
+              if (e.target === link) {
+
+                that.events.fire('userclose');
+
+              }
+
+            });
+
           }
         });
 
-        arrayOfcoords.push(array);
-      }
-      return arrayOfcoords;
-    }
-
-    let coordinatesArray = createCoordinates();
-
-    for (var i = 0; i < localStorage.length; i++) {
-      let userData = localStorage.getItem(localStorage.key(i)).split(',');
-      let address = [];
-
-      userData.forEach(function (item, i, array) {
-        if (i > 2) {
-          address.push(item);
-        }
+      this.map = new ymaps.Map("map", settings);
+      this.objectManager = new ymaps.ObjectManager({
+        clusterize: true
       });
 
-      if (coordinatesArray[i].length > 1) {
-        geoObjects[i] = new ymaps.Placemark(coordinatesArray[i], {
-          // balloonContentBodyLayout: 'BalloonContentLayout',
-          balloonContentHeader: userData[0],
-          balloonContentBody: `<div>${userData[1]}</div> <div>${userData[2]}</div><a class="linckCoords" href="javascript:void(0);" data-coords="${coordinatesArray[i]}">${address}</a>`,
-          balloonPanelMaxMapArea: 0,
-          hasBalloon: false
-        });
-      }
+      this.cluster = new ymaps.Clusterer({
+        clusterDisableClickZoom: true,
+        clusterBalloonContentLayout: 'cluster#balloonCarousel',
+        clusterBalloonItemContentLayout: clustererLayout
+      });
 
-
-    }
-
-    this.cluster.add(geoObjects);
+      this.map.geoObjects.add(this.objectManager);
+      this.map.geoObjects.add(this.cluster);
+      return this.map;
+    });
   }
 
   async getMapPosition(e) {
@@ -71,105 +51,198 @@ module.exports = class {
     };
   }
 
-  async createBalloon(tmp) {
+  async createBalloon(options, customCoords) {
     const clusterNem = this.cluster;
+    const mapName = this.map;
+    const objManager = this.objectManager;
+    const coords = options.coords;
 
-    var BalloonContentLayout = await ymaps.templateLayoutFactory.createClass(
-      '<div class="form">' +
-      '<div class="header">' +
-      tmp.address +
-      "</div>" +
-      '<div class="body">' +
-      "</div>" +
-      '<p class="title">Ваш отзыв</p>' +
-      '<div><input id="name" type="text" placeholder="Ваше имя"/></div>' +
-      '<div><input id="point" type="text" placeholder="Укажите место" /></div>' +
-      "<div>" +
-      '<textarea id="message" placeholder="Поделись впечатлениями">' +
-      " </textarea></div>" +
-      '<div class="button">' +
-      '<button id="btn">Отправить</button>' +
-      "</div>" +
-      "</div>", {
+    var BalloonLayout = await ymaps.templateLayoutFactory.createClass(
+      `<div class="modal" id="myModal" data-coords="${options.coords}">
+      <div class="modal__header">
+          <div id="modalAdress">${options.address}</div><span class="modal__close"></span>
+          </div>
+          <div class="modal__inner">
+          <div class="modal__result">
+            {% for review in properties.reviews %}
+              <div><b>{{ review[0] }}</b> {{ review[1] }}</div><div>{{ review[2] }}</div>
+            {% endfor %}
+          </div>
+          <div class="modal__title">Ваш отзыв</div>
+          <form id="modalForm">
+            <input name="name" id="name" class="modal__input" type="text" placeholder="Ваше имя">
+            <input name="point" id="point" class="modal__input" type="text" placeholder="Укажите место">
+            <textarea name="message" id="message" class="modal__textarea" placeholder="Поделитесь впечатлениями"></textarea>
+            <div class="modal__submit-wrapper">
+                <button class="modal__submit" id="addReview">Добавить</button>
+            </div>
+          </form>
+          </div>
+      </div>`, {
         build: function () {
-          BalloonContentLayout.superclass.build.call(this);
+          BalloonLayout.superclass.build.call(this);
+
           var that = this;
+          that.events.fire('userclose');
+          const closeBtn = document.querySelector(".modal__close");
+          const button = document.getElementById("addReview");
+          const body = document.querySelector(".modal__result");
+          let storage = localStorage;
 
-          document.addEventListener("click", function (e) {
+          if (!storage.getItem(coords)) {
+            body.textContent = 'Отзывов пока нет...';
+          }
+
+          document.addEventListener('click', function (e) {
             e.preventDefault();
-            const name = document.getElementById("name").value;
-            const point = document.getElementById("point").value;
-            const message = document.getElementById("message").value;
-            const body = document.querySelector(".body");
-            const button = document.getElementById("btn");
-            const div = document.createElement("div");
 
-            if (e.target === button) {
+            let link = document.getElementById('openBalloon');
 
-              let dataArray = [];
-              // div.innerHTML = `<div id="review"><b>${name}</b> <span>${point}</span><span class="data">${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}.${d.getMinutes()}</span><p>${message}</p></div>`;
-
-              if (name === '') {
-                alert('поле Имя не заполнено');
-              } else if (point === '') {
-                alert('поле Место не заполнено');
-              } else if (message === '') {
-                alert('поле Комментарий не заполнено');
-              } else {
-                dataArray.push(name);
-                dataArray.push(point);
-                dataArray.push(message);
-                dataArray.push(tmp.address);
-                div.innerHTML = `<div><b>${name}</b> ${point}</div><div>${message}</div>`;
-                body.appendChild(div);
-                localStorage.setItem(tmp.coords, dataArray);
-                that.onContent(name, point, message);
-
-              }
+            if (e.target === link) {
+              that.events.fire('userclose');
             }
 
           });
-        },
 
-        clear: function () {
-          // Выполняем действия в обратном порядке - сначала снимаем слушателя,
-          // а потом вызываем метод clear родительского класса.
-          BalloonContentLayout.superclass.clear.call(this);
+          button.addEventListener('click', function (e) {
+            e.preventDefault();
 
-          document.removeEventListener("click", function (e) {
+            let localValue = storage.getItem(coords);
+            const name = document.getElementById("name").value;
+            const point = document.getElementById("point").value;
+            const message = document.getElementById("message").value;
+            const div = document.createElement("div");
 
+            if (name === '') {
+              alert('поле Имя не заполнено');
+            } else if (point === '') {
+              alert('поле Место не заполнено');
+            } else if (message === '') {
+              alert('поле Комментарий не заполнено');
+            } else {
+
+              let storageData;
+
+              if (!localValue) {
+                storageData = JSON.stringify({
+                  review: {
+                    userName: name,
+                    userPoint: point,
+                    userMessage: message,
+                    address: options.address
+                  }
+                });
+
+                localStorage.setItem(options.coords, storageData);
+                body.innerHTML = '';
+
+              } else {
+                let data = JSON.parse(localValue || '{}');
+
+                let objLen = that.objLength(data); // длина объекта (кол-во отзывов)
+                let newReview = 'review_' + (objLen + 1);
+                data[newReview] = {
+                  userName: name,
+                  userPoint: point,
+                  userMessage: message,
+                  address: options.address
+                };
+
+                storageData = JSON.stringify(data);
+
+                localStorage.setItem(options.coords, storageData);
+              }
+
+              div.innerHTML = `<div><b>${name}</b> ${point}</div><div>${message}</div>`;
+              body.appendChild(div);
+              that.addPlacemark(name, point, message, options.coords, options.address);
+
+            }
           });
+
+          closeBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            that.events.fire('userclose');
+          });
+
         },
 
-        onContent: function (name, point, message) {
+        objLength: function (obj) {
+          var key, len = 0;
+          for (key in obj) {
+            len += Number(obj.hasOwnProperty(key));
+          }
+          return len;
+        },
+
+        getReviews: function (coord) {
+          // Получаем отзывы из localStorage
+
+          let localValue = localStorage.getItem(coord);
+          let data = JSON.parse(localValue || '{}');
+          let objKeys = Object.keys(data);
+          let array = [];
+
+          if (localValue) {
+
+            for (let i = 0; i < objKeys.length; i++) {
+              array.push([data[objKeys[i]].userName, data[objKeys[i]].userPoint, data[objKeys[i]].userMessage]);
+            }
+
+            return array;
+          }
+
+        },
+
+        addPlacemark: function (name, point, message, coords, address) {
+          const that = this;
+          const reviews = that.getReviews(coords);
 
           var myPlacemark = new ymaps.Placemark(
-            tmp.coords, {
-              balloonContentHeader: `<b>${point}</b>`,
-              balloonContentBody: `<div id="review"><a class="linckCoords" href="javascript:void(0);" data-coords="${tmp.coords}">${tmp.address}</a> <p>${message}</p></div>`,
-              // balloonContentFooter: `${d.getDate()}.${d.getMonth()}.${d.getFullYear()} ${d.getHours()}.${d.getMinutes()}`
+            coords, {
+              name: name,
+              point: point,
+              message: message,
+              address: address,
+              coords: coords,
+              reviews: reviews
             }, {
-              balloonContentBodyLayout: BalloonContentLayout,
-              balloonPanelMaxMapArea: 0,
+              balloonLayout: BalloonLayout,
               hasBalloon: true
             }
           );
 
           clusterNem.add(myPlacemark);
+          mapName.geoObjects.add(clusterNem);
 
-          return [myPlacemark, this.cluster];
+          return [myPlacemark, clusterNem];
         }
-
 
       }
     );
 
-    let balloon = await new ymaps.Balloon(this.map, {
-      contentLayout: BalloonContentLayout
+    let balloon = new ymaps.Balloon(this.map, {
+      layout: BalloonLayout,
+      closeButton: false
     });
 
     await balloon.options.setParent(this.map.options);
-    await balloon.open(tmp.coords);
+
+    this.cluster.events.add('click', function (e) {
+      balloon.close();
+    });
+
+    if (await balloon) {
+      await balloon.close();
+    }
+
+    if (customCoords) {
+      await balloon.open(customCoords);
+    } else {
+      await balloon.open(coords);
+    }
+
+    return await balloon;
 
   }
 
