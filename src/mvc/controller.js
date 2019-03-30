@@ -1,11 +1,8 @@
 const Map = require("../modules/api_yandex_map");
-// const Modal = require("../modules/modal");
-// const Placemarks = require("../modules/clusters");
 
 export default class {
   constructor() {
     this.myApiMap = new Map();
-
     this.init();
   }
 
@@ -39,9 +36,9 @@ export default class {
         if (this.Balloon) {
           this.Balloon.close();
         }
-  
+
         this.Balloon = await this.myApiMap.createBalloon(this.position, data);
-        
+
         function getReviews(value) {
           // Получаем отзывы из localStorage
 
